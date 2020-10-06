@@ -774,7 +774,32 @@ func buildStatefulSetModificationFunction(mdb mdbv1.MongoDB) statefulset.Modific
 	automationConfigVolume := statefulset.CreateVolumeFromSecret("automation-config", mdb.AutomationConfigSecretName())
 	automationConfigVolumeMount := statefulset.CreateVolumeMount(automationConfigVolume.Name, "/var/lib/automation/config", statefulset.WithReadOnly(true))
 
-	dataVolume := statefulset.CreateVolumeMount(dataVolumeName, "/data")
+	var dataVolumeMount corev1.VolumeMount
+	if dataVolMntCfg, found := mdb.GetVolumeMountConfiguration(dataVolumeName); found {
+		dataVolumeMount = statefulset.CreateVolumeMount(dataVolumeName, dataVolMntCfg.MountPath, func(m *corev1.VolumeMount) {
+			m.SubPath = dataVolMntCfg.SubPath
+		})
+	} else {
+		dataVolumeMount = statefulset.CreateVolumeMount(dataVolumeName, "/data")
+	}
+
+	dataVol := defaultPvc()
+	if dataVolCfg, found := mdb.GetVolumeConfiguration(dataVolumeName); found {
+		if dataVolCfg.PersistentVolumeClaim.StorageClass != "" {
+			dataVol = persistentvolumeclaim.Apply(
+				dataVol,
+				persistentvolumeclaim.WithStorageClassName(dataVolCfg.PersistentVolumeClaim.StorageClass))
+		}
+
+		if dataVolCfg.PersistentVolumeClaim.Size != "" {
+			// I believe we can ignore this error here, there is no where to propagate it
+			// and it looks like the stateful set creation will fail if the. value is invalid
+			sizeRes, _ := resourcerequirements.BuildStorageRequirements(dataVolCfg.PersistentVolumeClaim.Size)
+			dataVol = persistentvolumeclaim.Apply(
+				dataVol,
+				persistentvolumeclaim.WithResourceRequests(sizeRes))
+		}
+	}
 
 	return statefulset.Apply(
 		statefulset.WithName(mdb.Name),
@@ -785,7 +810,7 @@ func buildStatefulSetModificationFunction(mdb mdbv1.MongoDB) statefulset.Modific
 		statefulset.WithOwnerReference([]metav1.OwnerReference{getOwnerReference(mdb)}),
 		statefulset.WithReplicas(mdb.StatefulSetReplicasThisReconciliation()),
 		statefulset.WithUpdateStrategyType(getUpdateStrategyType(mdb)),
-		statefulset.WithVolumeClaim(dataVolumeName, defaultPvc()),
+		statefulset.WithVolumeClaim(dataVolumeName, dataVol),
 		statefulset.WithPodSpecTemplate(
 			podtemplatespec.Apply(
 				podtemplatespec.WithPodLabels(labels),
@@ -793,8 +818,8 @@ func buildStatefulSetModificationFunction(mdb mdbv1.MongoDB) statefulset.Modific
 				podtemplatespec.WithVolume(hooksVolume),
 				podtemplatespec.WithVolume(automationConfigVolume),
 				podtemplatespec.WithServiceAccount(operatorServiceAccountName),
-				podtemplatespec.WithContainer(agentName, mongodbAgentContainer(mdb.AutomationConfigSecretName(), []corev1.VolumeMount{agentHealthStatusVolumeMount, automationConfigVolumeMount, dataVolume})),
-				podtemplatespec.WithContainer(mongodbName, mongodbContainer(mdb.Spec.Version, []corev1.VolumeMount{mongodHealthStatusVolumeMount, dataVolume, hooksVolumeMount})),
+				podtemplatespec.WithContainer(agentName, mongodbAgentContainer(mdb.AutomationConfigSecretName(), []corev1.VolumeMount{agentHealthStatusVolumeMount, automationConfigVolumeMount, dataVolumeMount})),
+				podtemplatespec.WithContainer(mongodbName, mongodbContainer(mdb.Spec.Version, []corev1.VolumeMount{mongodHealthStatusVolumeMount, dataVolumeMount, hooksVolumeMount})),
 				podtemplatespec.WithInitContainer(versionUpgradeHookName, versionUpgradeHookInit([]corev1.VolumeMount{hooksVolumeMount})),
 				buildTLSPodSpecModification(mdb),
 				buildScramPodSpecModification(mdb),

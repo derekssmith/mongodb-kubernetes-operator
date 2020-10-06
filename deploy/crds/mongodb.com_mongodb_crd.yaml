@@ -163,6 +163,50 @@ spec:
                 - roles
                 type: object
               type: array
+            volumes:
+              description: Volumes allow configuration of volumes for the statefulset
+              type: array
+              items:
+                description: Volume is a definition of a volume for the statefulset
+                properties:
+                  name:
+                    description: Name of the volume
+                    type: string
+                  persistentVolumeClaim:
+                    description: Details of the persistent volume claim
+                    properties:
+                      claimName:
+                        description: The persistent volume claim name
+                        type: string
+                      size:
+                        description: The size of the volume
+                        type: string
+                      storageClass:
+                        description: The storage class to use for the volume
+                        type: string
+                    required:
+                    - claimName
+                required:
+                - name
+                - persistentVolumeClaim
+            volumeMounts:
+              description: VolumeMounts allow configuration of volume mounts on the statefulset
+              type: array
+              items:
+                description: VolumeMount that will be defined on the statefulset
+                properties:
+                  name:
+                    description: The name of the volume mount
+                    type: string
+                  mountPath:
+                    description: The mount path for the volume
+                    type: string
+                  subPath:
+                    description: The subpath for the mount
+                    type: string
+                required:
+                - name
+                - mountPath
             version:
               description: Version defines which version of MongoDB will be used
               type: string

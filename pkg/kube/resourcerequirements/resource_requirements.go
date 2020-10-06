@@ -1,6 +1,7 @@
 package resourcerequirements
 
 import (
+	"fmt"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
@@ -62,4 +63,14 @@ func BuildDefaultStorageRequirements() corev1.ResourceList {
 	res := corev1.ResourceList{}
 	res[corev1.ResourceStorage] = g10
 	return res
+}
+
+func BuildStorageRequirements(size string) (corev1.ResourceList, error) {
+	s, e := resource.ParseQuantity(size)
+	res := corev1.ResourceList{}
+	if e != nil {
+		return res, fmt.Errorf("invalid storage size, could not parse %s as a valid size: %w", size, e)
+	}
+	res[corev1.ResourceStorage] = s
+	return res, nil
 }

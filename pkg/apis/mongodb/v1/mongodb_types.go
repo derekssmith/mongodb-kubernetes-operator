@@ -59,6 +59,12 @@ type MongoDBSpec struct {
 	Users []MongoDBUser `json:"users"`
 
 	// +optional
+	Volumes []VolumeConfiguration `json:"volumes,omitempty"`
+
+	// +optional
+	VolumeMounts []VolumeMountConfiguration `json:"volumeMounts,omitempty"`
+
+	// +optional
 	StatefulSetConfiguration StatefulSetConfiguration `json:"statefulSet,omitempty"`
 
 	// AdditionalMongodConfig is additional configuration that can be passed to
@@ -66,6 +72,23 @@ type MongoDBSpec struct {
 	// configuration file: https://docs.mongodb.com/manual/reference/configuration-options/
 	// +kubebuilder:validation:Type=object
 	AdditionalMongodConfig MongodConfiguration `json:"additionalMongodConfig,omitempty"`
+}
+
+type VolumeConfiguration struct {
+	Name                  string                              `json:"name"`
+	PersistentVolumeClaim *PersistentVolumeClaimConfiguration `json:"persistentVolumeClaim"`
+}
+
+type PersistentVolumeClaimConfiguration struct {
+	ClaimName    string `json:"claimName"`
+	Size         string `json:"size,omitempty"`
+	StorageClass string `json:"storageClass,omitempty"`
+}
+
+type VolumeMountConfiguration struct {
+	Name string `json:"name"`
+	MountPath string `json:"mountPath"`
+	SubPath string `json:"subPath,omitempty"`
 }
 
 // StatefulSetConfiguration holds the optional custom StatefulSet
@@ -306,6 +329,27 @@ func (m MongoDB) CurrentReplicas() int {
 	return m.Status.CurrentStatefulSetReplicas
 }
 
+func (m MongoDB) GetVolumeConfiguration(volName string) (VolumeConfiguration, bool){
+	for _, v := range m.Spec.Volumes {
+		if v.Name == volName {
+			return v, true
+		}
+	}
+
+	return VolumeConfiguration{}, false
+}
+
+func (m MongoDB) GetVolumeMountConfiguration(name string) (VolumeMountConfiguration, bool) {
+	for _, v := range m.Spec.VolumeMounts {
+		if v.Name == name {
+			return v, true
+		}
+	}
+
+	return VolumeMountConfiguration{}, false
+}
+
+
 func (m *MongoDB) StatefulSetReplicasThisReconciliation() int {
 	return scale.ReplicasThisReconciliation(m)
 }
@@ -321,6 +365,8 @@ func (a automationConfigReplicasScaler) DesiredReplicas() int {
 func (a automationConfigReplicasScaler) CurrentReplicas() int {
 	return a.current
 }
+
+
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
