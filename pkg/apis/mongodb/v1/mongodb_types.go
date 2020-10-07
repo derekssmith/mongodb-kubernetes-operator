@@ -72,6 +72,9 @@ type MongoDBSpec struct {
 	// configuration file: https://docs.mongodb.com/manual/reference/configuration-options/
 	// +kubebuilder:validation:Type=object
 	AdditionalMongodConfig MongodConfiguration `json:"additionalMongodConfig,omitempty"`
+
+	// +optional
+	ServiceName string `json:"serviceName,omitempty"`
 }
 
 type VolumeConfiguration struct {
@@ -277,6 +280,10 @@ func (m MongoDB) Hosts() []string {
 // ServiceName returns the name of the Service that should be created for
 // this resource
 func (m MongoDB) ServiceName() string {
+	if m.Spec.ServiceName != "" {
+		return m.Spec.ServiceName
+	}
+
 	return m.Name + "-svc"
 }
 
